@@ -1,0 +1,81 @@
+#!/bin/bash
+
+TARGET=$(basename $BASH_SOURCE)
+export TARGET
+
+SAVE_S3=$1
+export BUCKET=`basename $SAVE_S3`
+
+UNIT_PARAMETERS=$HOME/unit_parameters
+UNIT_PROCESS=$HOME/unit_process
+
+export UNIT_PARAMETERS
+export UNIT_PROCESS
+export GRASS_BATCH_JOB
+
+TARGETDIR=${TARGETBASE}/${TARGET}
+echo "MKDIR $TARGETDIR"
+mkdir -p $TARGETDIR
+export TARGETDIR
+
+# rc will conditionally set SOURCE_LOCATION
+if [ -e rc ] ; then
+. rc
+fi
+
+paste -d, ${UNIT_PARAMETERS}/${BLM_COLORS} \
+${UNIT_PARAMETERS}/${BLM_LABELS} \
+${UNIT_PARAMETERS}/${BLM_WEIGHTS} \
+| perl -pe 'chop;print "," if $.>1;' -e 's/^\d+\s+/"/;' \
+-e 's/,\d+:/",/;' -e 's/",\d+:/ (/;' -e 's/$/)"/;' \
+> ${TARGETDIR}/legend_${BLM_COST}.json
+
+paste -d, ${UNIT_PARAMETERS}/${EDWG_COLORS} \
+${UNIT_PARAMETERS}/${EDWG_LABELS} \
+${UNIT_PARAMETERS}/${EDWG_WEIGHTS} \
+| perl -pe 'chop;print "," if $.>1;' -e 's/^\d+\s+/"/;' \
+-e 's/,\d+:/",/;' -e 's/",\d+:/ (/;' -e 's/$/)"/;' \
+> ${TARGETDIR}/legend_${EDWG_COST}.json
+
+paste -d, ${UNIT_PARAMETERS}/${LANDCOV_COLORS} \
+${UNIT_PARAMETERS}/${LANDCOV_LABELS} \
+${UNIT_PARAMETERS}/${LANDCOV_WEIGHTS} \
+| perl -pe 'chop;print "," if $.>1;' -e 's/^\d+\s+/"/;' \
+-e 's/,\d+:/",/;' -e 's/",\d+:/ (/;' -e 's/$/)"/;' \
+> ${TARGETDIR}/legend_${LANDCOV_COST}.json
+
+paste -d, ${UNIT_PARAMETERS}/${SLOPE_COLORS} \
+${UNIT_PARAMETERS}/${SLOPE_LABELS} \
+${UNIT_PARAMETERS}/${SLOPE_WEIGHTS} \
+| perl -pe 'chop;print "," if $.>1;' -e 's/^\d+\s+/"/;' \
+-e 's/,\d+:/",/;' -e 's/",\d+:/ (/;' -e 's/$/)"/;' \
+> ${TARGETDIR}/legend_${SLOPE_COST}.json
+
+##for i in $BLM_COST $EDWG_COST $LANDCOV_COST $SLOPE_COST ; do
+##last_z=$(cd $TARGETDIR/tile; ls|sort -rn|head -1)
+##for z in $(cd $TARGETDIR/tile; ls|sort -n) ; do
+##(cd $TARGETBASE ; find $TARGET/tile/$z/$i -type f -name *.png ) \
+##| perl -pe 'chop;s@^(?:[.]/)?(.*)[.]png$@$1@;$b=$_;$b=~s@/\w+/([^/]*)$@/$1@;$_="[[aws_get_object:$ENV{BUCKET}=$b.swne.bounds],\"[aws_get_object_url:$ENV{BUCKET}=$_.png=+30 minutes=]\"],";' \
+##| perl -pe "s/^/[$z,/;" -e 's/,$/],/;'
+##done | sed -e 's/,$//' > $TARGETDIR/url_${i}_${last_z}.json
+##done
+
+echo "SYNC $TARGETDIR to $SAVE_S3/${TARGET}"
+trys=0
+until timeout $ALARMTIME aws s3 sync $TARGETDIR $SAVE_S3/${TARGET} ; do
+let trys=$trys+1
+aws sns publish --topic "$STATUSNOTE" --message "TIMEOUT cannot sync to $SAVE_S3/${TARGET}"
+if [ $trys -gt 10 ]; then
+	exit
+fi
+done
+if [ ! -e leave-it ] ; then
+rm -rf $GRASSDBASE/*/$JOBHOME
+rm -rf $TARGETDIR
+fi
+else
+RC=$?
+aws sns publish --topic "$STATUSNOTE" --message "FAIL $TARGET $JOBHOME"
+fi
+
+exit $RC

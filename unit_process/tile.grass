@@ -1,0 +1,209 @@
+#!/bin/bash
+
+#env RUN
+#env LINE
+#env MINZOOM
+#env MAXZOOM
+
+if [ "X${NAME}" == "X" ] ; then NAME=default ; fi
+if [ "X${MINZOOM}" == "X" ] ; then MINZOOM=2 ; fi
+if [ "X${MAXZOOM}" == "X" ] ; then MAXZOOM=9 ; fi
+
+to="+30 minutes"
+
+TIME=`date +"%Y-%M-%D %H:%M:%S"`
+echo ${BASH_SOURCE}
+
+swk=tile
+
+mkdir -p $TARGETDIR/url/${NAME}
+
+for i in $BLM_COST $EDWG_COST $LANDCOV_COST $SLOPE_COST ; do
+echo -n "" \
+> ${TARGETDIR}/url/${NAME}/${i}.json
+done
+
+if [ "X$KML" == "X" ] ; then
+echo "$TIME CREATE $RUN LINE=$LINE"
+echo "$LINE," \
+| perl -ne 'BEGIN{$/=",";}s/,$//;if($.%2==1){$lat=$_;}else{$lon=$_;}if($.>1&&$.%2==0){print"$lon,$lat\n";}' \
+| v.in.ascii -n fs=, output=$RUN
+else
+echo "$TIME CREATE $RUN KML=$KML"
+v.in.ogr -e dsn=$TARGETDIR/shapefiles output=$RUN
+fi
+
+echo "$TIME CREATE ${LINE_LOCATION} $RUN"
+g.mapset -c location=${LINE_LOCATION} mapset=$RUN
+
+g.region -d -a vect=$RUN@PERMANENT -bg
+
+#g.mapset location=${UNIT_LOCATION} mapset=${EDWG_MAPSET}
+eval `g.region -bg`
+
+minlat=$ll_s
+minlon=$ll_w
+maxlat=$ll_n
+maxlon=$ll_e
+
+echo "$TIME CREATE ${GMAP_LOCATION} $RUN"
+g.mapset -c location=${GMAP_LOCATION} mapset=$RUN
+
+for ((zoom=${MINZOOM};$zoom<=${MAXZOOM};zoom++)) {
+
+if [ $zoom -gt ${MINZOOM} ] ; then c="," ; else c="" ; fi
+
+for i in $BLM_COST $EDWG_COST $LANDCOV_COST $SLOPE_COST ; do
+echo "$c[$zoom" \
+>> ${TARGETDIR}/url/${NAME}/${i}.json
+done
+
+#res=`echo "$RESOLUTION*(2^($MAXZOOM-$zoom))" | bc`
+factor=`echo "2^$zoom" | bc`
+lon_tile_size=`echo "360/$factor" | bc -l`
+lat_tile_size=`echo "180/$factor" | bc -l`
+sw_col=`echo "(180+$minlon)/$lon_tile_size" | bc -l`
+ne_col=`echo "(180+$maxlon)/$lon_tile_size" | bc -l`
+ne_row=`echo "(90-$maxlat)/$lat_tile_size" | bc -l`
+sw_row=`echo "(90-$minlat)/$lat_tile_size" | bc -l`
+sw_col=`echo "($sw_col)/1" | bc`
+ne_col=`echo "($ne_col+0.5)/1" | bc`
+ne_row=`echo "($ne_row)/1" | bc`
+sw_row=`echo "($sw_row+0.5)/1" | bc`
+
+for ((x=${sw_col};$x<=${ne_col};x++)) {
+for ((y=${ne_row};$y<=${sw_row};y++)) {
+
+xmin=`echo "$x*$lon_tile_size-180" | bc -l`
+ymax=`echo "90-$y*$lat_tile_size" | bc -l`
+xmax=`echo "$xmin+$lon_tile_size" | bc -l`
+ymin=`echo "$ymax-$lat_tile_size" | bc -l`
+
+mkdir -p $TARGETDIR/$swk/$zoom/${BLM_COST}
+mkdir -p $TARGETDIR/$swk/$zoom/${EDWG_COST}
+mkdir -p $TARGETDIR/$swk/$zoom/${LANDCOV_COST}
+mkdir -p $TARGETDIR/$swk/$zoom/${SLOPE_COST}
+#mkdir -p $TARGETDIR/$swk/$zoom/${VEG_COST}
+
+g.mapset location=${LINE_LOCATION} mapset=$RUN
+
+g.region -d w=$xmin s=$ymin e=$xmax n=$ymax
+
+v.in.region output=$REGION --overwrite
+
+g.mapset location=${GMAP_LOCATION} mapset=$RUN
+g.region -d
+v.proj location=${LINE_LOCATION} mapset=$RUN input=$REGION --overwrite
+g.region vect=$REGION rows=512 cols=512
+
+eval `g.region -bg`
+
+for i in $BLM_COST $EDWG_COST $LANDCOV_COST $SLOPE_COST ; do
+p="http://wecc-scdt-public.s3.amazonaws.com/tile/${zoom}/${i}/${x}_${y}.png"
+echo ",[$ll_s,$ll_w,$ll_n,$ll_e,\"$p\"]" \
+>> ${TARGETDIR}/url/${NAME}/${i}.json
+done
+
+if [ ! -e ${TARGETDIR}/$swk/$zoom/${BLM_COST}/${x}_${y}.png ] ; then
+TIME=`date +"%Y-%M-%D %H:%M:%S"`
+echo "$TIME CREATE $BLM_COST in $RUN from $BLM_MAPSET column $BLM_COLUMN"
+v.proj input=${BLM_COST} location=${UNIT_LOCATION} mapset=${BLM_MAPSET}
+v.to.rast input=${BLM_COST} layer=${BLM_LAYER} \
+output=${BLM_COST} use=attr column=${BLM_COLUMN} --overwrite
+
+TIME=`date +"%Y-%M-%D %H:%M:%S"`
+echo "$TIME LABEL with $BLM_WEIGHTS"
+r.category map=${BLM_COST} rules=${UNIT_PARAMETERS}/${BLM_WEIGHTS}
+r.colors map=${BLM_COST} color=rules rules=${UNIT_PARAMETERS}/${BLM_COLORS}
+
+r.out.png -t input=${BLM_COST} \
+output=${TARGETDIR}/$swk/$zoom/${BLM_COST}/${x}_${y}.png
+g.remove rast=${BLM_COST} vect=${BLM_COST}
+fi
+
+if [ ! -e ${TARGETDIR}/$swk/$zoom/${EDWG_COST}/${x}_${y}.png ] ; then
+TIME=`date +"%Y-%M-%D %H:%M:%S"`
+#echo "$TIME CREATE $EDWG_COST in $RUN from $EDWG_MAPSET column $EDWG_COLUMN"
+#v.to.rast input=${EDWG_COST}@${EDWG_MAPSET} layer=${EDWG_LAYER} \
+#output=${EDWG_COST} use=attr column=${EDWG_COLUMN} --overwrite
+
+echo "$TIME CREATE $EDWG_COST in $RUN from $EDWG_MAPSET"
+r.proj input=${EDWG_COST} mapset=${EDWG_MAPSET} location=${UNIT_LOCATION} \
+memory=$RASTER_SIZE 
+
+TIME=`date +"%Y-%M-%D %H:%M:%S"`
+echo "$TIME LABEL with $EDWG_WEIGHTS"
+r.category map=${EDWG_COST} rules=${UNIT_PARAMETERS}/${EDWG_WEIGHTS}
+r.colors map=${EDWG_COST} color=rules rules=${UNIT_PARAMETERS}/${EDWG_COLORS}
+
+r.out.png -t input=${EDWG_COST} \
+output=${TARGETDIR}/$swk/$zoom/${EDWG_COST}/${x}_${y}.png
+g.remove rast=${EDWG_COST}
+fi
+
+if [ ! -e ${TARGETDIR}/$swk/$zoom/${LANDCOV_COST}/${x}_${y}.png ] ; then
+TIME=`date +"%Y-%M-%D %H:%M:%S"`
+echo "$TIME CREATE $LANDCOV_COST in $RUN from $LANDCOV_MAPSET"
+r.proj input=${LANDCOV_COST} mapset=${LANDCOV_MAPSET} \
+location=${UNIT_LOCATION} memory=$RASTER_SIZE 
+
+TIME=`date +"%Y-%M-%D %H:%M:%S"`
+echo "$TIME LABEL with $LANDCOV_WEIGHTS"
+r.category map=${LANDCOV_COST} rules=${UNIT_PARAMETERS}/${LANDCOV_WEIGHTS}
+r.colors map=${LANDCOV_COST} color=rules \
+rules=${UNIT_PARAMETERS}/${LANDCOV_COLORS}
+
+r.out.png -t input=${LANDCOV_COST} \
+output=${TARGETDIR}/$swk/$zoom/${LANDCOV_COST}/${x}_${y}.png
+g.remove rast=${LANDCOV_COST}
+fi
+
+if [ ! -e ${TARGETDIR}/$swk/$zoom/${SLOPE_COST}/${x}_${y}.png ] ; then
+TIME=`date +"%Y-%M-%D %H:%M:%S"`
+#echo "$TIME CREATE $SLOPE_COST in $RUN from $SLOPE_MAPSET column $SLOPE_COLUMN"
+#v.to.rast input=${SLOPE_COST}@${SLOPE_MAPSET} layer=${SLOPE_LAYER} \
+#output=${SLOPE_COST} use=attr column=${SLOPE_COLUMN} --overwrite
+
+echo "$TIME CREATE $SLOPE_COST in $RUN from $SLOPE_MAPSET"
+r.proj input=${SLOPE_COST} mapset=${SLOPE_MAPSET} location=${UNIT_LOCATION} \
+memory=$RASTER_SIZE 
+
+TIME=`date +"%Y-%M-%D %H:%M:%S"`
+echo "$TIME LABEL with $SLOPE_WEIGHTS"
+r.category map=${SLOPE_COST} rules=${UNIT_PARAMETERS}/${SLOPE_WEIGHTS}
+r.colors map=${SLOPE_COST} color=rules rules=${UNIT_PARAMETERS}/${SLOPE_COLORS}
+
+r.out.png -t input=${SLOPE_COST} \
+output=${TARGETDIR}/$swk/$zoom/${SLOPE_COST}/${x}_${y}.png
+g.remove rast=${SLOPE_COST}
+fi
+
+#if [ ! -e ${TARGETDIR}/$swk/$zoom/${VEG_COST}/${x}_${y}.png ] ; then
+#TIME=`date +"%Y-%M-%D %H:%M:%S"`
+#echo "$TIME CREATE $VEG_COST in $RUN from $VEG_MAPSET column $VEG_COLUMN"
+#v.to.rast input=${VEG_COST}@${VEG_MAPSET} layer=${VEG_LAYER} \
+#output=${VEG_COST} use=attr column=${VEG_COLUMN} --overwrite
+
+#TIME=`date +"%Y-%M-%D %H:%M:%S"`
+#echo "$TIME LABEL with $VEG_WEIGHTS"
+#r.category map=${VEG_COST} rules=${UNIT_PARAMETERS}/${VEG_WEIGHTS}
+#r.colors map=${VEG_COST} color=rules rules=${UNIT_PARAMETERS}/${VEG_COLORS}
+
+#r.out.png -t input=${VEG_COST} \
+#output=${TARGETDIR}/$swk/$zoom/${VEG_COST}/${x}_${y}.png
+#g.remove rast=${VEG_COST}
+#fi
+
+g.remove vect=$REGION
+}
+}
+
+for i in $BLM_COST $EDWG_COST $LANDCOV_COST $SLOPE_COST ; do
+echo "]" \
+>> ${TARGETDIR}/url/${NAME}/${i}.json
+done
+
+}
+
+TIME=`date +"%Y-%M-%D %H:%M:%S"`
+echo "$TIME finished $TARGETDIR"

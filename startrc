@@ -1,0 +1,19 @@
+
+# this only has effect for ./start.sh
+if [ -z ${START_SERVERS+x} ]; then export START_SERVERS=1 ; fi
+
+if [ -z ${STATUSNOTE+x} ]; then export STATUSNOTE="arn:aws:sns:us-west-2:${ACCT}:request-queue-service-status" ; fi
+
+
+if [ -z ${TARGETBASE+x} ]; then
+if [ -e /media/ephemeral0/grassdata ] ; then
+export TARGETBASE=/media/ephemeral0/process-active
+else
+if [ -e /home/ec2-user/process-active ] ; then
+export TARGETBASE=/home/ec2-user/process-active
+else
+export TARGETBASE=/home/ec2-user 
+fi
+fi
+fi
+

@@ -1,0 +1,52 @@
+#!/bin/bash
+
+TARGET=url
+export TARGET
+
+SAVE_S3=$1
+export BUCKET=`basename $SAVE_S3`
+
+UNIT_PARAMETERS=$HOME/unit_parameters
+UNIT_PROCESS=$HOME/unit_process
+GRASS_BATCH_JOB=$UNIT_PROCESS/tile_url.grass
+
+export UNIT_PARAMETERS
+export UNIT_PROCESS
+export GRASS_BATCH_JOB
+
+TARGETDIR=${TARGETBASE}/${TARGET}
+echo "MKDIR $TARGETDIR"
+mkdir -p $TARGETDIR
+export TARGETDIR
+
+# rc will conditionally set SOURCE_LOCATION
+if [ -e rc ] ; then
+. rc
+fi
+
+echo "SYNC LOCATION $SOURCE_LOCATION TO JOB $JOBHOME"
+( cd ${GRASSDBASE} ; rsync -aq --delete ${SOURCE_LOCATION}/ ${JOBHOME} & )
+
+wait
+if RUN=$JOBHOME HOME=$HOME/${JOBHOME} one_job.sh ; then
+RC=$?
+
+echo "SYNC $TARGETDIR/corridor/$NAME to $SAVE_S3/${TARGET}/corridor/$NAME"
+trys=0
+until timeout $ALARMTIME aws s3 sync $TARGETDIR/corridor/$NAME $SAVE_S3/${TARGET}/corridor/$NAME ; do
+let trys=$trys+1
+aws sns publish --topic "$STATUSNOTE" --message "TIMEOUT cannot sync to $SAVE_S3/${TARGET}/corridor/$NAME"
+if [ $trys -gt 10 ]; then
+	exit
+fi
+done
+if [ ! -e leave-it ] ; then
+rm -rf $GRASSDBASE/*/$JOBHOME
+##rm -rf $TARGETDIR
+fi
+else
+RC=$?
+aws sns publish --topic "$STATUSNOTE" --message "FAIL $TARGET $JOBHOME"
+fi
+
+exit $RC

@@ -1,0 +1,85 @@
+#!/bin/bash
+
+TIME=`date +"%Y-%M-%D %H:%M:%S"`
+echo ${BASH_SOURCE}
+
+TIME=`date +"%Y-%M-%D %H:%M:%S"`
+if [ ! -e "$GRASSDBASE/{$SPHERE_LOCATION}" ] ; then
+echo "$TIME CREATE LOCATION ${SPHERE_LOCATION}"
+g.proj -c location=${SPHERE_LOCATION} proj4="+proj=longlat +a=6378137 +rf=298.257223563 +nadgrids=@null +wktext +no_defs +towgs84=0.000,0.000,0.000 +over"
+fi
+
+echo "$TIME CREATE ${SPHERE_LOCATION} $EDWG_MAPSET"
+g.mapset -c location=${SPHERE_LOCATION} mapset=${EDWG_MAPSET}
+g.region -d
+
+echo "$TIME CREATE $EDWG_COST in $SPHERE_LOCATION from $EDWG_MAPSET column $EDWG_COLUMN"
+v.proj input=${EDWG_COST} location=${UNIT_LOCATION} mapset=${EDWG_MAPSET}
+
+TIME=`date +"%Y-%M-%D %H:%M:%S"`
+echo "$TIME CREATE ${SPHERE_LOCATION} $BLM_MAPSET"
+g.mapset -c location=${SPHERE_LOCATION} mapset=${BLM_MAPSET}
+g.region -d
+
+echo "$TIME CREATE $BLM_COST in $SPHERE_LOCATION from $BLM_MAPSET column $BLM_COLUMN"
+v.proj input=${BLM_COST} location=${UNIT_LOCATION} mapset=${BLM_MAPSET}
+
+TIME=`date +"%Y-%M-%D %H:%M:%S"`
+echo "$TIME CREATE ${SPHERE_LOCATION} $SLOPE_MAPSET"
+g.mapset -c location=${SPHERE_LOCATION} mapset=${SLOPE_MAPSET}
+g.region -d
+
+echo "$TIME CREATE $SLOPE_COST in $SPHERE_LOCATION from $SLOPE_MAPSET column $SLOPE_COLUMN"
+v.proj input=${SLOPE_COST} location=${UNIT_LOCATION} mapset=${SLOPE_MAPSET}
+
+TIME=`date +"%Y-%M-%D %H:%M:%S"`
+echo "$TIME CREATE ${SPHERE_LOCATION} $VEG_MAPSET"
+g.mapset -c location=${SPHERE_LOCATION} mapset=${VEG_MAPSET}
+g.region -d
+
+echo "$TIME CREATE $VEG_COST_NORTH in $SPHERE_LOCATION from $VEG_MAPSET column $VEG_COLUMN"
+v.proj input=${VEG_COST_NORTH} location=${UNIT_LOCATION} mapset=${VEG_MAPSET}
+
+echo "$TIME CREATE $VEG_COST_SOUTH in $SPHERE_LOCATION from $VEG_MAPSET column $VEG_COLUMN"
+v.proj input=${VEG_COST_SOUTH} location=${UNIT_LOCATION} mapset=${VEG_MAPSET}
+
+TIME=`date +"%Y-%M-%D %H:%M:%S"`
+echo "$TIME CREATE LOCATION ${GMAP_LOCATION}"
+g.proj -c location=${GMAP_LOCATION} proj4="+proj=merc +a=6378137 +b=6378137 +lat_ts=0.0 +lon_0=0.0 +x_0=0.0 +y_0=0 +k=1.0 +units=m +nadgrids=@null +wktext +no_defs +over"
+
+echo "$TIME CREATE ${GMAP_LOCATION} $EDWG_MAPSET"
+g.mapset -c location=${GMAP_LOCATION} mapset=${EDWG_MAPSET}
+g.region -d
+
+echo "$TIME CREATE $EDWG_COST in $GMAP_LOCATION from $EDWG_MAPSET column $EDWG_COLUMN"
+v.proj input=${EDWG_COST} location=${SPHERE_LOCATION} mapset=${EDWG_MAPSET}
+
+TIME=`date +"%Y-%M-%D %H:%M:%S"`
+echo "$TIME CREATE ${GMAP_LOCATION} $BLM_MAPSET"
+g.mapset -c location=${GMAP_LOCATION} mapset=${BLM_MAPSET}
+g.region -d
+
+echo "$TIME CREATE $BLM_COST in $GMAP_LOCATION from $BLM_MAPSET column $BLM_COLUMN"
+v.proj input=${BLM_COST} location=${SPHERE_LOCATION} mapset=${BLM_MAPSET}
+
+TIME=`date +"%Y-%M-%D %H:%M:%S"`
+echo "$TIME CREATE ${GMAP_LOCATION} $SLOPE_MAPSET"
+g.mapset -c location=${GMAP_LOCATION} mapset=${SLOPE_MAPSET}
+g.region -d
+
+echo "$TIME CREATE $SLOPE_COST in $GMAP_LOCATION from $SLOPE_MAPSET column $SLOPE_COLUMN"
+v.proj input=${SLOPE_COST} location=${SPHERE_LOCATION} mapset=${SLOPE_MAPSET}
+
+TIME=`date +"%Y-%M-%D %H:%M:%S"`
+echo "$TIME CREATE ${GMAP_LOCATION} $VEG_MAPSET"
+g.mapset -c location=${GMAP_LOCATION} mapset=${VEG_MAPSET}
+g.region -d
+
+echo "$TIME CREATE $VEG_COST_NORTH in $GMAP_LOCATION from $VEG_MAPSET column $VEG_COLUMN"
+v.proj input=${VEG_COST_NORTH} location=${SPHERE_LOCATION} mapset=${VEG_MAPSET}
+
+echo "$TIME CREATE $VEG_COST_SOUTH in $GMAP_LOCATION from $VEG_MAPSET column $VEG_COLUMN"
+v.proj input=${VEG_COST_SOUTH} location=${SPHERE_LOCATION} mapset=${VEG_MAPSET}
+
+TIME=`date +"%Y-%M-%D %H:%M:%S"`
+echo "$TIME finished $TARGETDIR"

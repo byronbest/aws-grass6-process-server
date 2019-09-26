@@ -1,0 +1,81 @@
+#!/bin/bash
+
+# env NAME
+# env KML
+# env LINE
+
+TARGET=$(basename $BASH_SOURCE)
+export TARGET
+
+SAVE_S3=$1
+export BUCKET=`basename $SAVE_S3`
+
+UNIT_PROCESS=$HOME/unit_process
+export UNIT_PROCESS
+UNIT_PARAMETERS=$HOME/unit_parameters
+export UNIT_PARAMETERS
+GRASS_BATCH_JOB=$UNIT_PROCESS/cost_tile.grass
+GRASS_BATCH_JOB=$UNIT_PROCESS/least-risk.grass
+export GRASS_BATCH_JOB
+
+TARGETDIR=${TARGETBASE}/${TARGET}/$NAME
+echo "MKDIR $TARGETDIR"
+mkdir -p $TARGETDIR
+export TARGETDIR
+
+if [ -e rc ] ; then
+. rc
+fi
+
+echo "SYNC LOCATION $SOURCE_LOCATION TO JOB $JOBHOME"
+( cd ${GRASSDBASE} ; rsync -aq --delete ${SOURCE_LOCATION}/ ${JOBHOME} & )
+
+if [ "X$KML" != "X" ]; then
+p=`dirname $KML`
+echo "SYNC $p $TARGETDIR"
+trys=0
+until timeout $ALARMTIME aws s3 sync $p $TARGETDIR ; do
+let trys=$trys+1
+aws sns publish --topic "$STATUSNOTE" --message "TIMEOUT cannot sync from $p"
+if [ $trys -gt 10 ]; then
+	exit
+fi
+done
+fi
+
+wait
+if RUN=$JOBHOME UNIT=$NAME HOME=$HOME/${JOBHOME} one_job.sh ; then
+RC=$?
+
+(
+cd ${TARGETBASE}
+echo "create ${TARGET}/$NAME/url.json"
+for z in $(cd ${TARGET}/$NAME/tile; ls|sort -n) ; do
+find ${TARGET}/$NAME/tile/$z -type f -name *.png \
+| perl -pe 'chop;s@^(?:[.]/)?(.*)[.]png$@$1@;$_="[[aws_get_object:$ENV{BUCKET}=$_.swne.bounds],\"[aws_get_object_url:$ENV{BUCKET}=$_.png=+30 minutes=]\"],";' \
+| perl -pe "s/^/[$z,/;" -e 's/,$/],/;'
+done | sed -e 's/,$//' | expand_url.pl > ${TARGET}/$NAME/url.json
+if [[ $BUCKET == *-public ]] ; then
+public_url.pl < ${TARGET}/$NAME/url.json > ${TARGET}/$NAME/public_url.json
+fi
+)
+
+echo "SYNC $TARGETDIR to $SAVE_S3/${TARGET}/$NAME"
+trys=0
+until timeout $ALARMTIME aws s3 sync $TARGETDIR $SAVE_S3/${TARGET}/$NAME ; do
+let trys=$trys+1
+aws sns publish --topic "$STATUSNOTE" --message "TIMEOUT cannot sync to $SAVE_S3/${TARGET}/$NAME"
+if [ $trys -gt 10 ]; then
+	exit
+fi
+done
+if [ ! -e leave-it ] ; then
+rm -rf $GRASSDBASE/*/$JOBHOME
+rm -rf $TARGETDIR
+fi
+else
+RC=$?
+aws sns publish --topic "$STATUSNOTE" --message "FAIL $TARGET $JOBHOME $NAME"
+fi
+
+exit $RC

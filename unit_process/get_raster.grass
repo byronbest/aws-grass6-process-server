@@ -1,0 +1,15 @@
+#!.
+
+#env UNIT_LOCATION
+#env UNIT
+#env RASTER_FILE
+#env RASTER_SIZE
+
+g.proj -c location=$UNIT_LOCATION \
+ datum=nad83 proj4="+proj=aea +ellips=grs80 +lat_0=23.0000000000 +lat_1=29.5000000000 +lat_2=45.5000000000 +lon_0=-96.0000000000 +x_0=0.0000000000 +y_0=0.0000000000 +a=6378137 +rf=298.257222101 +no_defs +to_meter=1.0"
+g.mapset -c location=$UNIT_LOCATION mapset=$UNIT
+g.mapset location=$UNIT_LOCATION mapset=$UNIT
+r.in.gdal input=$RASTER_FILE output=$UNIT memory=$RASTER_SIZE
+g.region -d
+g.region rast=$UNIT
+

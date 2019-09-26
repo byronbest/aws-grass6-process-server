@@ -1,0 +1,152 @@
+#!/bin/bash
+
+TIME=`date +"%Y-%M-%D %H:%M:%S"`
+echo ${BASH_SOURCE}
+
+g.mapset location=${LINE_LOCATION} mapset=PERMANENT
+g.remove vect=$RUN
+
+#echo "$TIME CREATE $RUN pair FROM=$FROM TO=$TO"
+#v.in.ascii -n fs=, output=$RUN <<+EOT+
+#$FROM
+#$TO
+#+EOT+
+echo "$TIME CREATE $RUN KML=$KML"
+v.in.ogr -e dsn=$TARGETDIR/shapefiles output=$RUN
+
+if v.info map=$RUN ; then
+
+echo "$TIME CREATE ${GMAP_LOCATION} $RUN"
+g.mapset -c location=${GMAP_LOCATION} mapset=$RUN
+g.mapset location=${GMAP_LOCATION} mapset=$RUN
+g.region -d
+
+echo "$TIME PROJ $RUN FROM $LINE_LOCATION AT $RESOLUTION meters"
+v.proj location=${LINE_LOCATION} mapset=PERMANENT input=$RUN
+eval `g.region -ag vect=$RUN res=$RESOLUTION`
+g.remove vect=$RUN
+echo "$TIME removed $RUN to update grid"
+
+if [ $rows -gt $cols ] ; then
+let x=$rows-$cols
+let a=$x*$ewres/2
+let b=$rows*$nsres/20
+echo "$TIME GROW $REGION $a wider $b taller"
+g.region -a e=e+$a w=w-$a n=n+$b s=s-$b res=$RESOLUTION
+else
+let x=$cols-$rows
+let a=$x*$nsres/2
+let b=$cols*$ewres/20
+echo "$TIME GROW $REGION $b wider $a taller"
+g.region -a n=n+$a s=s-$a e=e+$b w=w-$b res=$RESOLUTION
+fi
+if [ "X${N}" != "X" ] ; then
+let N=N*$nsres
+echo "$TIME EXPAND $REGION N $N"
+g.region -a n=n+$N res=$RESOLUTION
+fi
+if [ "X${S}" != "X" ] ; then
+let S=S*$nsres
+echo "$TIME EXPAND $REGION S $S"
+g.region -a s=s-$S res=$RESOLUTION
+fi
+if [ "X${E}" != "X" ] ; then
+let E=E*$ewres
+echo "$TIME EXPAND $REGION E $E"
+g.region -a e=e+$E res=$RESOLUTION
+fi
+if [ "X${W}" != "X" ] ; then
+let W=W*$ewres
+echo "$TIME EXPAND $REGION W $W"
+g.region -a w=w-$W res=$RESOLUTION
+fi
+
+echo "$TIME CREATE $REGION"
+v.in.region output=$REGION --overwrite
+
+echo "$TIME CREATE edge"
+g.region -a n=n+$RESOLUTION s=s-$RESOLUTION e=e+$RESOLUTION w=w-$RESOLUTION res=$RESOLUTION
+v.type input=$REGION output=edge type=boundary,line
+
+echo "$TIME CREATE $REGION"
+v.in.region output=$REGION --overwrite
+ 
+TIME=`date +"%Y-%M-%D %H:%M:%S"`
+eval `g.region -g`
+echo "$TIME CREATE wall from edge"
+v.category input=edge output=wall
+echo "$TIME CREATE highwall"
+v.buffer input=wall output=highwall type=line distance=$RESOLUTION
+echo "$TIME CREATE wall from highwall at $RESOLUTION"
+v.to.rast input=highwall output=wall use=val value=999999999 rows=$rows
+
+TIME=`date +"%Y-%M-%D %H:%M:%S"`
+echo "$TIME CREATE $RUN and p_$RUN"
+v.proj location=${LINE_LOCATION} mapset=PERMANENT input=$RUN
+v.to.points -v input=$RUN output=p_$RUN type=point,line
+
+TIME=`date +"%Y-%M-%D %H:%M:%S"`
+g.region -d
+eval `g.region -ag vect=$REGION res=${RESOLUTION}`
+if [ $rows -gt $cols ] ; then
+let max_cost=$rows*1414
+else
+let max_cost=$cols*1414
+fi
+if [ -e "$TARGETDIR/${UNIT}_drain_path" ] ; then
+. "$TARGETDIR/${UNIT}_drain_path"
+max_cost=`echo "$max/${RESOLUTION}*1.2" | bc`
+fi
+echo "$TIME ESTIMATE max cost distance $max_cost"
+
+TIME=`date +"%Y-%M-%D %H:%M:%S"`
+#echo "$TIME CREATE $EDWG_COST in $RUN from $EDWG_MAPSET column $EDWG_COLUMN"
+#v.to.rast input=${EDWG_COST}@${EDWG_MAPSET} layer=1 output=${EDWG_COST} \
+#use=attr column=${EDWG_COLUMN} rows=$rows --quiet
+
+echo "$TIME CREATE $EDWG_COST in $RUN from $EDWG_MAPSET"
+r.proj input=${EDWG_COST} mapset=${EDWG_MAPSET} location=${UNIT_LOCATION} \
+resolution=$RESOLUTION memory=$RASTER_SIZE 
+
+echo "$TIME set null=255"
+r.null map=${EDWG_COST} null=255
+echo "$TIME LABEL with $EDWG_WEIGHTS"
+r.category map=${EDWG_COST} rules=${UNIT_PARAMETERS}/${EDWG_WEIGHTS}
+echo "$TIME CREATE weighted_risk"
+r.mapcalc "weighted_risk=if(isnull(wall),@${EDWG_COST},wall)"
+#echo "$TIME CREATE drain_surface x $RESOLUTION"
+#r.mapcalc drain_surface=weighted_risk*${RESOLUTION}
+
+# change coordinates to match, use projected line
+FROM=`v.out.ascii input=p_$RUN fs=, layer=2 | head -1 | sed -e 's/,[^,]*$//'`
+TO=`v.out.ascii input=p_$RUN fs=, layer=2 | tail -1 | sed -e 's/,[^,]*$//'`
+export FROM
+export TO
+
+TIME=`date +"%Y-%M-%D %H:%M:%S"`
+echo "$TIME CREATE from FROM=$FROM"
+r.cost -k input=weighted_risk output=from coordinate=${FROM} max_cost=$max_cost
+TIME=`date +"%Y-%M-%D %H:%M:%S"`
+echo "$TIME CREATE to TO=$TO"
+r.cost -k input=weighted_risk output=to coordinate=${TO} max_cost=$max_cost
+r.mapcalc cost=from+to
+
+eval `r.info -r map=cost --quiet`
+max=`echo "$min+$min/5" | bc`
+r.rescale input=cost from=$min,$max output=cost.255 to=0,255 title="Rescaled Cost" --quiet
+
+swk=cost_tile
+mkdir -p $TARGETDIR/$swk
+
+g.region -gl > ${TARGETDIR}/$swk/${UNIT}.bounds
+#eval `g.region -gl`
+#echo "$sw_lat,$sw_long,$ne_lat,$ne_long" > ${TARGETDIR}/$swk/swne.bounds
+eval `g.region -bg`
+echo "$ll_s,$ll_w,$ll_n,$ll_e" > ${TARGETDIR}/$swk/swne.bounds
+
+r.out.png -tw input=cost.255 output=$TARGETDIR/$swk/${UNIT}.png
+
+fi
+TIME=`date +"%Y-%M-%D %H:%M:%S"`
+echo "$TIME finished $TARGETDIR"
+

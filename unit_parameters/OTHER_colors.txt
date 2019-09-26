@@ -1,0 +1,9 @@
+"Desert/Barren Land" 138:147:104
+Farmland 82:21:202
+Forested 86:239:69
+"Mountain (>8% Slope)" 238:63:132
+"Rolling Hills (2-8% Slope)" 55:60:116
+Scrubbed/Flat 229:236:112
+Suburban 139:115:40
+Urban 39:115:40
+Wetland 139:87:39

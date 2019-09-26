@@ -1,0 +1,57 @@
+#!/bin/bash
+
+# env NAME
+# env JOBHOME
+# env ZIPFILE
+
+#ZIPFILE=EDWG_Source/WECC_Env_Risk_20140606.zip
+#ZIPFILE=icf/WECC_Environmental_Risk_Classes_20140625.zip
+
+TARGET=$(basename $BASH_SOURCE)
+export TARGET
+
+UNIT_PROCESS=$HOME/unit_process
+export UNIT_PROCESS
+UNIT_PARAMETERS=$HOME/unit_parameters
+export UNIT_PARAMETERS
+GRASS_BATCH_JOB=$UNIT_PROCESS/get-test.grass
+export GRASS_BATCH_JOB
+
+if [ -e rc ] ; then
+. rc
+fi
+
+TARGETDIR=${TARGETBASE}/${TARGET}/$NAME
+echo "MKDIR $TARGETDIR"
+mkdir -p $TARGETDIR
+export TARGETDIR
+
+if [ ! -e ${TARGETDIR}/${NAME}_shapefiles ] ; then
+aws s3 cp s3://ltpt-data-exchange/$ZIPFILE ${TARGETDIR}
+mkdir -p ${TARGETDIR}/${NAME}_shapefiles
+ZIPFILE=`basename $ZIPFILE`
+(
+cd ${TARGETDIR}/${NAME}_shapefiles
+unzip ../$ZIPFILE
+for i in * ; do
+k=`echo "$i" | sed -e 's/[- ]/_/'`
+if [ "$i" != "$k" ] ; then
+mv "$i" "$k"
+fi
+done
+cd ..
+rm -f $ZIPFILE
+)
+fi
+
+echo "SYNC LOCATION $SOURCE_LOCATION TO JOB $JOBHOME"
+( cd ${GRASSDBASE} ; rsync -aq --delete ${SOURCE_LOCATION}/ ${JOBHOME} & )
+
+wait
+if RUN=$JOBHOME UNIT=$NAME HOME=$HOME/${JOBHOME} one_job.sh ; then
+RC=$?
+else
+RC=$?
+fi
+
+exit $RC

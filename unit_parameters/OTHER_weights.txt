@@ -1,0 +1,9 @@
+"Desert/Barren Land":1.05
+Farmland:1
+Forested:2.25
+"Mountain (>8% Slope)":1.75
+"Rolling Hills (2-8% Slope)":1.4
+Scrubbed/Flat:1
+Suburban:1.27
+Urban:1.59
+Wetland:1.2

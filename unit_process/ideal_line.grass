@@ -1,0 +1,177 @@
+#!/bin/bash
+
+TIME=`date +"%Y-%M-%D %H:%M:%S"`
+echo ${BASH_SOURCE}
+
+echo "$TIME CREATE $RUN pair FROM=$FROM TO=$TO"
+v.in.ascii -n fs=, output=$RUN <<+EOT+
+$FROM
+$TO
++EOT+
+
+echo "$TIME CREATE ${LINE_LOCATION} $RUN"
+g.mapset -c location=${LINE_LOCATION} mapset=$RUN
+g.region -d
+g.region -a vect=$RUN@PERMANENT res=$RESOLUTION
+echo "$TIME CREATE $REGION"
+v.in.region output=$REGION --overwrite
+
+echo "$TIME CREATE ${UNIT_LOCATION} $RUN"
+g.mapset -c location=${UNIT_LOCATION} mapset=$RUN
+
+g.region -d
+echo "$TIME PROJ $RUN FROM $LINE_LOCATION AT $RESOLUTION meters"
+v.proj location=${LINE_LOCATION} mapset=PERMANENT input=$RUN
+
+echo "$TIME REGION from $RUN at $RESOLUTION"
+eval `g.region -ag vect=$RUN res=$RESOLUTION`
+g.remove vect=$RUN
+
+if [ $rows -gt $cols ] ; then
+let x=$rows-$cols
+let a=$x*$ewres/2
+let b=$rows*$nsres/20
+echo "$TIME GROW $REGION $a wider $b taller"
+g.region -a e=e+$a w=w-$a n=n+$b s=s-$b res=$RESOLUTION
+else
+let x=$cols-$rows
+let a=$x*$nsres/2
+let b=$cols*$ewres/20
+echo "$TIME GROW $REGION $b wider $a taller"
+g.region -a n=n+$a s=s-$a e=e+$b w=w-$b res=$RESOLUTION
+fi
+if [ "X${N}" != "X" ] ; then
+let N=N*$nsres
+echo "$TIME EXPAND $REGION N $N"
+g.region -a n=n+$N res=$RESOLUTION
+fi
+if [ "X${S}" != "X" ] ; then
+let S=S*$nsres
+echo "$TIME EXPAND $REGION S $S"
+g.region -a s=s-$S res=$RESOLUTION
+fi
+if [ "X${E}" != "X" ] ; then
+let E=E*$ewres
+echo "$TIME EXPAND $REGION E $E"
+g.region -a e=e+$E res=$RESOLUTION
+fi
+if [ "X${W}" != "X" ] ; then
+let W=W*$ewres
+echo "$TIME EXPAND $REGION W $W"
+g.region -a w=w-$W res=$RESOLUTION
+fi
+
+echo "$TIME CREATE $REGION"
+v.in.region output=$REGION --overwrite
+
+echo "$TIME CREATE edge"
+g.region -a n=n+$RESOLUTION s=s-$RESOLUTION e=e+$RESOLUTION w=w-$RESOLUTION res=$RESOLUTION
+v.type input=$REGION output=edge type=boundary,line
+
+echo "$TIME CREATE $REGION"
+v.in.region output=$REGION --overwrite
+ 
+TIME=`date +"%Y-%M-%D %H:%M:%S"`
+eval `g.region -g`
+echo "$TIME CREATE wall from edge"
+v.category input=edge output=wall
+echo "$TIME CREATE highwall"
+v.buffer input=wall output=highwall type=line distance=$RESOLUTION
+echo "$TIME CREATE wall from highwall at $RESOLUTION"
+v.to.rast input=highwall output=wall use=val value=999999999 rows=$rows
+
+TIME=`date +"%Y-%M-%D %H:%M:%S"`
+echo "$TIME CREATE $RUN and p_$RUN"
+v.proj location=${LINE_LOCATION} mapset=PERMANENT input=$RUN
+v.to.points -v input=$RUN output=p_$RUN type=point,line
+
+TIME=`date +"%Y-%M-%D %H:%M:%S"`
+g.region -d
+eval `g.region -ag vect=$REGION res=${RESOLUTION}`
+if [ $rows -gt $cols ] ; then
+let max_cost=$rows*1414
+else
+let max_cost=$cols*1414
+fi
+echo "$TIME ESTIMATE max cost distance $max_cost"
+
+#echo "$TIME CREATE $EDWG_COST in $RUN from $EDWG_MAPSET column $EDWG_COLUMN"
+#v.to.rast input=${EDWG_COST}@${EDWG_MAPSET} layer=1 output=${EDWG_COST} \
+#use=attr column=${EDWG_COLUMN} rows=$rows --quiet
+
+echo "$TIME CREATE $EDWG_COST in $RUN from $EDWG_MAPSET"
+r.proj input=${EDWG_COST} mapset=${EDWG_MAPSET} location=${UNIT_LOCATION} \
+resolution=$RESOLUTION memory=$RASTER_SIZE 
+
+echo "$TIME set null=255"
+r.null map=${EDWG_COST} null=255
+echo "$TIME LABEL with $EDWG_WEIGHTS"
+r.category map=${EDWG_COST} rules=${UNIT_PARAMETERS}/${EDWG_WEIGHTS}
+echo "$TIME CREATE weighted_risk"
+r.mapcalc "weighted_risk=if(isnull(wall),@${EDWG_COST},wall)"
+echo "$TIME CREATE drain_surface x $RESOLUTION"
+r.mapcalc drain_surface=weighted_risk*${RESOLUTION}
+
+FROM=`v.out.ascii input=p_$RUN fs=, layer=2 | head -1 | sed -e 's/,[^,]*$//'`
+TO=`v.out.ascii input=p_$RUN fs=, layer=2 | tail -1 | sed -e 's/,[^,]*$//'`
+export FROM
+export TO
+
+TIME=`date +"%Y-%M-%D %H:%M:%S"`
+echo "$TIME CREATE fromto FROM=$FROM TO=$TO"
+r.cost -k input=drain_surface output=fromto coordinate=${FROM} stop_coordinate=${TO}
+
+TIME=`date +"%Y-%M-%D %H:%M:%S"`
+echo "$TIME CREATE ideal_path to TO=$TO"
+#r.drain -nd input=fromto indir=fromto_dir output=ideal_count voutput=ideal_path coordinate=${TO}
+#r.drain -n input=fromto output=ideal_count coordinate=${TO}
+r.drain input=fromto output=ideal_path coordinate=${TO}
+
+echo "$TIME VECTORIZE ideal_path on $EDWG_COST"
+g.remove vect=ideal_path
+r.mask -r
+r.mask ideal_path
+r.to.vect -v input=${EDWG_COST} output=ideal_path feature=line
+
+echo "$TIME CREATE drain_path fromto"
+r.mapcalc drain_path=fromto
+r.to.vect -v input=drain_path output=drain_path feature=line
+r.mask -r
+
+echo "$TIME CREATE ideal_polyline"
+v.build.polylines input=ideal_path output=ideal_polyline cats=multi type=line
+
+echo "$TIME CREATE drain_polyline"
+v.build.polylines input=drain_path output=drain_polyline cats=multi type=line
+
+
+if v.info map=ideal_polyline ; then
+
+swk=ideal_path
+mkdir -p $TARGETDIR/$swk/shapefiles
+
+r.info -r drain_path > $TARGETDIR/$swk/${UNIT}_drain_path
+
+r.stats -ncla fs=, input=${EDWG_COST} output=- \
+| perl -pe 'BEGIN{print "request_name,risk_class,risk_weight,area,count\n";}print $ENV{NAME},",";' \
+> $TARGETDIR/$swk/$UNIT.csv
+v.report ideal_polyline option=length units=miles \
+| perl -pe 'if($.==1){$_="request_name,risk_class,risk_weight,risk_miles\n";}else{print $ENV{NAME},",";}s/[|]/,/g;' \
+> $TARGETDIR/$swk/${UNIT}_miles.csv
+
+echo "$TIME MAPSET $RUN at $LINE_LOCATION"
+g.mapset location=${LINE_LOCATION} mapset=$RUN
+
+g.region -d
+v.proj location=${UNIT_LOCATION} mapset=$RUN input=ideal_path
+v.proj location=${UNIT_LOCATION} mapset=$RUN input=ideal_polyline
+v.to.points -v input=ideal_polyline output=ideal_polyline_points type=line
+v.out.ascii input=ideal_polyline_points fs=, format=point columns=label output=- | perl -pe 'BEGIN{print "lon,lat,risk_class,risk_weight\n";}' >$TARGETDIR/$swk/${UNIT}_points.csv
+
+v.out.ogr input=ideal_path dsn=$TARGETDIR/$swk/${UNIT}_path.kml format=KML type=line
+v.out.ogr input=ideal_polyline dsn=$TARGETDIR/$swk/shapefiles olayer=$UNIT type=line
+
+g.mapset location=${LINE_LOCATION} mapset=PERMANENT
+g.remove vect=$RUN
+
+fi

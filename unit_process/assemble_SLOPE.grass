@@ -1,0 +1,10 @@
+
+result=SLOPE
+g.mapset -c location=aea mapset=$result
+v.proj location=$result mapset=$result input=$result
+
+v.db.addcol $result col="slope_class integer"
+v.db.update $result col=slope_class qcol="1" where="SLOPE = '0 to 2 Percent'"
+v.db.update $result col=slope_class qcol="2" where="SLOPE = '2 to 8 Percent'"
+v.db.update $result col=slope_class qcol="3" where="SLOPE = 'Greater than 8 percent'"
+

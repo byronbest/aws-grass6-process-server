@@ -1,0 +1,56 @@
+#!/bin/bash
+
+# env NAME
+# env LINE
+# env FROM
+# env TO
+
+export TIMEOUT="TIMEOUT cannot save to $1"
+TARGET=$(basename $BASH_SOURCE)
+export TARGET
+
+SAVE_S3=$1
+
+UNIT_PROCESS=$HOME/unit_process
+export UNIT_PROCESS
+UNIT_PARAMETERS=$HOME/unit_parameters
+export UNIT_PARAMETERS
+GRASS_BATCH_JOB=$UNIT_PROCESS/ideal_line.grass
+export GRASS_BATCH_JOB
+
+TARGETDIR=${TARGETBASE}/${TARGET}/$NAME
+echo "MKDIR $TARGETDIR"
+mkdir -p $TARGETDIR
+export TARGETDIR
+
+if [ -e rc ] ; then
+. rc
+fi
+
+echo "SYNC LOCATION $SOURCE_LOCATION TO JOB $JOBHOME"
+( cd ${GRASSDBASE} ; rsync -aq --delete ${SOURCE_LOCATION}/ ${JOBHOME} & )
+
+wait
+if RUN=$JOBHOME UNIT=$NAME HOME=$HOME/${JOBHOME} one_job.sh ; then
+RC=$?
+echo -n "$LINE" > $TARGETDIR/input.path
+color_kml.pl
+echo "SYNC $TARGETDIR to $SAVE_S3/${TARGET}/$NAME"
+trys=0
+until timeout $ALARMTIME aws s3 sync $TARGETDIR $SAVE_S3/${TARGET}/$NAME ; do
+let trys=$trys+1
+aws sns publish --topic "$STATUSNOTE" --message "$TIMEOUT"
+if [ $trys -gt 10 ]; then
+	exit
+fi
+done
+if [ ! -e leave-it ] ; then
+rm -rf $GRASSDBASE/*/$JOBHOME
+rm -rf $TARGETDIR
+fi
+else
+RC=$?
+aws sns publish --topic "$STATUSNOTE" --message "FAIL $TARGET $JOBHOME $NAME"
+fi
+
+exit $RC

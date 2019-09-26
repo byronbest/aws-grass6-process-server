@@ -1,0 +1,4 @@
+1:"0 to 2 Percent"
+2:"2 to 8 Percent"
+3:"Greater than 8 percent"
+255:"missing"

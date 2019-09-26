@@ -1,0 +1,24 @@
+
+g.mapset -c location=${UNIT_LOCATION} mapset=VEG
+v.proj location=${VEG_NORT_LOCATION} mapset=VEG_NORTH input=VEG_NORTH output=NORTH
+v.db.addcol NORTH col="terrain_class integer"
+v.db.update NORTH col=terrain_class qcol="1" where="TERRAIN_TY = 'Desert/Barren Land'"
+v.db.update NORTH col=terrain_class qcol="2" where="TERRAIN_TY = 'Farmland'"
+v.db.update NORTH col=terrain_class qcol="3" where="TERRAIN_TY = 'Forested'"
+v.db.update NORTH col=terrain_class qcol="4" where="TERRAIN_TY = 'Open Water'"
+v.db.update NORTH col=terrain_class qcol="5" where="TERRAIN_TY = 'Scrubbed/Flat'"
+v.db.update NORTH col=terrain_class qcol="6" where="TERRAIN_TY = 'Suburban'"
+v.db.update NORTH col=terrain_class qcol="7" where="TERRAIN_TY = 'Urban'"
+v.db.update NORTH col=terrain_class qcol="8" where="WETLAND = 'NWI' OR WETLAND = 'Wetlands (MT)'"
+
+v.proj location=${VEG_SOUTH_LOCATION} mapset=VEG_SOUTH input=VEG_SOUTH output=SOUTH
+v.db.addcol SOUTH col="terrain_class integer"
+v.db.update SOUTH col=terrain_class qcol="1" where="TERRAIN_TY = 'Desert/Barren Land'"
+v.db.update SOUTH col=terrain_class qcol="2" where="TERRAIN_TY = 'Farmland'"
+v.db.update SOUTH col=terrain_class qcol="3" where="TERRAIN_TY = 'Forested'"
+v.db.update SOUTH col=terrain_class qcol="4" where="TERRAIN_TY = 'Open Water'"
+v.db.update SOUTH col=terrain_class qcol="5" where="TERRAIN_TY = 'Scrubbed/Flat'"
+v.db.update SOUTH col=terrain_class qcol="6" where="TERRAIN_TY = 'Suburban'"
+v.db.update SOUTH col=terrain_class qcol="7" where="TERRAIN_TY = 'Urban'"
+v.db.update SOUTH col=terrain_class qcol="8" where="WETLAND = 'NWI'"
+

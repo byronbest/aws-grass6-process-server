@@ -1,0 +1,60 @@
+#!/bin/bash
+
+# env NAME
+# env LINE
+# env COLOR
+# env TRANSPARENCY
+
+export TIMEOUT="TIMEOUT cannot save to $1"
+TARGET=$(basename $BASH_SOURCE)
+export TARGET
+
+SAVE_S3=$1
+NOTIFY_QUEUE=$2
+PROCESS_CREATES="$SAVE_S3/${TARGET}/$NAME"
+
+UNIT_PROCESS=$HOME/unit_process
+export UNIT_PROCESS
+UNIT_PARAMETERS=$HOME/unit_parameters
+export UNIT_PARAMETERS
+GRASS_BATCH_JOB=$UNIT_PROCESS/alternative_line.grass
+export GRASS_BATCH_JOB
+
+TARGETDIR=${TARGETBASE}/${TARGET}/$NAME
+echo "MKDIR $TARGETDIR"
+mkdir -p $TARGETDIR
+export TARGETDIR
+
+if [ -e rc ] ; then
+. rc
+fi
+
+echo "SYNC LOCATION $SOURCE_LOCATION TO JOB $JOBHOME"
+( cd ${GRASSDBASE} ; rsync -aq --delete ${SOURCE_LOCATION}/ ${JOBHOME} & )
+
+wait
+if RUN=$JOBHOME UNIT=$NAME HOME=$HOME/${JOBHOME} one_job.sh ; then
+RC=$?
+color_kml.pl
+echo "SYNC $TARGETDIR to $PROCESS_CREATES"
+trys=0
+until timeout $ALARMTIME aws s3 sync $TARGETDIR $PROCESS_CREATES ; do
+let trys=$trys+1
+aws sns publish --topic "$STATUSNOTE" --message "$TIMEOUT"
+if [ $trys -gt 10 ]; then
+	exit
+fi
+done
+if [ ! -e leave-it ] ; then
+rm -rf $GRASSDBASE/*/$JOBHOME
+rm -rf $TARGETDIR
+fi
+if [ "X$NOTIFY_QUEUE" != "X" ]; then
+aws sns publish --topic "$NOTIFY_QUEUE" --message "$PROCESS_CREATES/"
+fi
+else
+RC=$?
+aws sns publish --topic "$STATUSNOTE" --message "FAIL $JOBHOME $PROCESS_CREATES"
+fi
+
+exit $RC

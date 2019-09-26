@@ -1,0 +1,18 @@
+#!/bin/bash
+
+# env NAME
+# env LINE
+
+export TIMEOUT="TIMEOUT cannot save to $1"
+TARGET=$(basename $BASH_SOURCE)
+TARGET=grass-ideal-line
+export TARGET
+
+TARGETDIR=${TARGETBASE}/${TARGET}/$NAME
+echo "MKDIR $TARGETDIR"
+mkdir -p $TARGETDIR
+export TARGETDIR
+
+echo -n "$LINE" > $TARGETDIR/input.path
+
+exit 0

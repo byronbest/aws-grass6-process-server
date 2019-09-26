@@ -1,0 +1,13 @@
+
+export RASTER_FILE=content/risk_class
+export UNIT=$EDWG_COST
+. $UNIT_PROCESS/get_raster.grass
+
+export RASTER_FILE=content/landcov
+export UNIT=$LANDCOV_COST
+. $UNIT_PROCESS/get_raster.grass
+
+export RASTER_FILE=content/slope_classes
+export UNIT=$SLOPE_COST
+. $UNIT_PROCESS/get_raster.grass
+

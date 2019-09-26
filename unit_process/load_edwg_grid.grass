@@ -1,0 +1,4 @@
+
+export RASTER_FILE=content/risk_grid
+export UNIT=$EDWG_COST
+. $UNIT_PROCESS/get_raster.grass

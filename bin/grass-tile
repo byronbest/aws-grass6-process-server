@@ -1,0 +1,62 @@
+#!/bin/bash
+
+TARGET=$(basename $BASH_SOURCE)
+export TARGET
+
+TILE=$1
+SAVE_S3=$2
+export BUCKET=`basename $SAVE_S3`
+
+UNIT_PARAMETERS=$HOME/unit_parameters
+UNIT_PROCESS=$HOME/unit_process
+GRASS_BATCH_JOB=$UNIT_PROCESS/$TILE.grass
+
+export UNIT_PARAMETERS
+export UNIT_PROCESS
+export GRASS_BATCH_JOB
+
+TARGETDIR=${TARGETBASE}/${TARGET}
+echo "MKDIR $TARGETDIR"
+mkdir -p $TARGETDIR
+export TARGETDIR
+
+# rc will conditionally set SOURCE_LOCATION
+if [ -e rc ] ; then
+. rc
+fi
+
+echo "SYNC LOCATION $SOURCE_LOCATION TO JOB $JOBHOME"
+( cd ${GRASSDBASE} ; rsync -aq --delete ${SOURCE_LOCATION}/ ${JOBHOME} & )
+
+wait
+if RUN=$JOBHOME HOME=$HOME/${JOBHOME} one_job.sh ; then
+RC=$?
+
+##for i in $BLM_COST $EDWG_COST $LANDCOV_COST $SLOPE_COST ; do
+##last_z=$(cd $TARGETDIR/tile; ls|sort -rn|head -1)
+##for z in $(cd $TARGETDIR/tile; ls|sort -n) ; do
+##(cd $TARGETBASE ; find $TARGET/tile/$z/$i -type f -name *.png ) \
+##| perl -pe 'chop;s@^(?:[.]/)?(.*)[.]png$@$1@;$b=$_;$b=~s@/\w+/([^/]*)$@/$1@;$_="[[aws_get_object:$ENV{BUCKET}=$b.swne.bounds],\"[aws_get_object_url:$ENV{BUCKET}=$_.png=+30 minutes=]\"],";' \
+##| perl -pe "s/^/[$z,/;" -e 's/,$/],/;'
+##done | sed -e 's/,$//' > $TARGETDIR/url_${i}_${last_z}.json
+##done
+
+echo "SYNC $TARGETDIR to $SAVE_S3/${TARGET}"
+trys=0
+until timeout $ALARMTIME aws s3 sync $TARGETDIR $SAVE_S3/${TARGET} ; do
+let trys=$trys+1
+aws sns publish --topic "$STATUSNOTE" --message "TIMEOUT cannot sync to $SAVE_S3/${TARGET}"
+if [ $trys -gt 10 ]; then
+	exit
+fi
+done
+if [ ! -e leave-it ] ; then
+rm -rf $GRASSDBASE/*/$JOBHOME
+##rm -rf $TARGETDIR
+fi
+else
+RC=$?
+aws sns publish --topic "$STATUSNOTE" --message "FAIL $TARGET $JOBHOME"
+fi
+
+exit $RC

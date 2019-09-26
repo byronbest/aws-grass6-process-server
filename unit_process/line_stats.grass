@@ -1,0 +1,211 @@
+#!/bin/bash
+
+TIME=`date +"%Y-%M-%D %H:%M:%S"`
+echo ${BASH_SOURCE}
+
+let RESOLUTION=$RESOLUTION/5
+
+g.mapset location=${LINE_LOCATION} mapset=PERMANENT
+g.remove vect=$RUN
+
+echo "$TIME CREATE $RUN KML=$KML"
+v.in.ogr -e dsn=$TARGETDIR/shapefiles output=$RUN
+
+if v.info map=$RUN ; then
+
+echo "$TIME CREATE ${UNIT_LOCATION} $RUN"
+g.mapset -c location=${UNIT_LOCATION} mapset=$RUN
+g.mapset location=${UNIT_LOCATION} mapset=$RUN
+g.region -d
+
+echo "$TIME PROJ $RUN FROM $LINE_LOCATION AT $RESOLUTION meters"
+v.proj location=${LINE_LOCATION} mapset=PERMANENT input=$RUN
+eval `g.region -ag vect=$RUN res=$RESOLUTION`
+g.remove vect=$RUN
+echo "$TIME removed $RUN to update grid"
+
+let a=10*$RESOLUTION
+let b=10*$RESOLUTION
+echo "$TIME GROW $REGION $b wider $a taller"
+g.region -a n=n+$a s=s-$a e=e+$b w=w-$b res=$RESOLUTION
+
+if [ "X${N}" != "X" ] ; then
+let N=N*$nsres
+echo "$TIME EXPAND $REGION N $N"
+g.region -a n=n+$N res=$RESOLUTION
+fi
+if [ "X${S}" != "X" ] ; then
+let S=S*$nsres
+echo "$TIME EXPAND $REGION S $S"
+g.region -a s=s-$S res=$RESOLUTION
+fi
+if [ "X${E}" != "X" ] ; then
+let E=E*$ewres
+echo "$TIME EXPAND $REGION E $E"
+g.region -a e=e+$E res=$RESOLUTION
+fi
+if [ "X${W}" != "X" ] ; then
+let W=W*$ewres
+echo "$TIME EXPAND $REGION W $W"
+g.region -a w=w-$W res=$RESOLUTION
+fi
+
+v.proj location=${LINE_LOCATION} mapset=PERMANENT input=$RUN
+
+echo "$TIME CREATE $REGION"
+v.in.region output=$REGION --overwrite
+echo `g.region -ll`
+
+eval `g.region -g`
+
+v.to.rast input=$RUN output=$RUN use=val value=1
+r.thin input=$RUN output=ideal_path
+
+TIME=`date +"%Y-%M-%D %H:%M:%S"`
+#echo "$TIME CREATE $EDWG_COST in $RUN from $EDWG_MAPSET column $EDWG_COLUMN"
+#v.to.rast input=${EDWG_COST}@${EDWG_MAPSET} layer=1 output=${EDWG_COST} \
+#use=attr column=${EDWG_COLUMN} rows=$rows
+
+echo "$TIME CREATE $EDWG_COST in $RUN from $EDWG_MAPSET"
+r.proj input=${EDWG_COST} mapset=${EDWG_MAPSET} location=${UNIT_LOCATION} \
+resolution=$RESOLUTION memory=$RASTER_SIZE 
+
+echo "$TIME set null=255"
+r.null map=${EDWG_COST} null=255
+TIME=`date +"%Y-%M-%D %H:%M:%S"`
+echo "$TIME LABEL with $EDWG_WEIGHTS"
+r.category map=${EDWG_COST} rules=${UNIT_PARAMETERS}/${EDWG_WEIGHTS}
+r.colors map=${EDWG_COST} color=rules rules=${UNIT_PARAMETERS}/${EDWG_COLORS}
+
+TIME=`date +"%Y-%M-%D %H:%M:%S"`
+echo "$TIME CREATE $BLM_COST in $RUN from $BLM_MAPSET column $BLM_COLUMN"
+v.to.rast input=${BLM_COST}@${BLM_MAPSET} output=${BLM_COST} \
+use=attr column=${BLM_COLUMN} rows=$rows
+
+#echo "$TIME CREATE $BLM_COST in $RUN from $BLM_MAPSET"
+#r.proj input=${BLM_COST} mapset=${BLM_MAPSET} location=${UNIT_LOCATION} \
+#resolution=$RESOLUTION memory=$RASTER_SIZE 
+
+echo "$TIME set null=255"
+r.null map=${BLM_COST} null=255
+TIME=`date +"%Y-%M-%D %H:%M:%S"`
+echo "$TIME LABEL with $BLM_WEIGHTS"
+r.category map=${BLM_COST} rules=${UNIT_PARAMETERS}/${BLM_WEIGHTS}
+r.colors map=${BLM_COST} color=rules rules=${UNIT_PARAMETERS}/${BLM_COLORS}
+
+echo "$TIME CREATE $LANDCOV_COST in $RUN from $LANDCOV_MAPSET"
+r.proj input=${LANDCOV_COST} mapset=${LANDCOV_MAPSET} location=${UNIT_LOCATION} \
+resolution=$RESOLUTION memory=$RASTER_SIZE 
+
+echo "$TIME set null=255"
+r.null map=${LANDCOV_COST} null=255
+
+TIME=`date +"%Y-%M-%D %H:%M:%S"`
+echo "$TIME LABEL with $LANDCOV_WEIGHTS"
+r.category map=${LANDCOV_COST} rules=${UNIT_PARAMETERS}/${LANDCOV_WEIGHTS}
+r.colors map=${LANDCOV_COST} color=rules rules=${UNIT_PARAMETERS}/${LANDCOV_COLORS}
+
+TIME=`date +"%Y-%M-%D %H:%M:%S"`
+#echo "$TIME CREATE $SLOPE_COST in $RUN from $SLOPE_MAPSET column $SLOPE_COLUMN"
+#v.to.rast input=${SLOPE_COST}@${SLOPE_MAPSET} layer=1 output=${SLOPE_COST} \
+#use=attr column=${SLOPE_COLUMN} rows=$rows
+
+echo "$TIME CREATE $SLOPE_COST in $RUN from $SLOPE_MAPSET"
+r.proj input=${SLOPE_COST} mapset=${SLOPE_MAPSET} location=${UNIT_LOCATION} \
+resolution=$RESOLUTION memory=$RASTER_SIZE 
+
+echo "$TIME set null=255"
+r.null map=${SLOPE_COST} null=255
+TIME=`date +"%Y-%M-%D %H:%M:%S"`
+echo "$TIME LABEL with $SLOPE_WEIGHTS"
+r.category map=${SLOPE_COST} rules=${UNIT_PARAMETERS}/${SLOPE_WEIGHTS}
+r.colors map=${SLOPE_COST} color=rules rules=${UNIT_PARAMETERS}/${SLOPE_COLORS}
+
+#TIME=`date +"%Y-%M-%D %H:%M:%S"`
+#echo "$TIME CREATE $VEG_COST_NORTH in $RUN from $VEG_MAPSET column $VEG_COLUMN"
+#v.to.rast input=${VEG_COST_NORTH}@${VEG_MAPSET} output=${VEG_COST_NORTH} \
+#use=attr column=${VEG_COLUMN} rows=$rows
+#
+#TIME=`date +"%Y-%M-%D %H:%M:%S"`
+#echo "$TIME CREATE $VEG_COST_SOUTH in $RUN from $VEG_MAPSET column $VEG_COLUMN"
+#v.to.rast input=${VEG_COST_SOUTH}@${VEG_MAPSET} output=${VEG_COST_SOUTH} \
+#use=attr column=${VEG_COLUMN} rows=$rows
+#
+#TIME=`date +"%Y-%M-%D %H:%M:%S"`
+#echo "$TIME CREATE VEG=if(isnull(${VEG_COST_NORTH}),${VEG_COST_SOUTH},${VEG_COST_NORTH})"
+#r.mapcalc "VEG=if(isnull(${VEG_COST_NORTH}),${VEG_COST_SOUTH},${VEG_COST_NORTH})"
+
+#echo "$TIME CREATE $VEG_COST in $RUN from $VEG_MAPSET column $VEG_COLUMN"
+#r.proj input=${VEG_COST} mapset=${VEG_MAPSET} location=${UNIT_LOCATION} \
+#resolution=$RESOLUTION memory=$RASTER_SIZE 
+
+#echo "$TIME set null=255"
+#r.null map=${VEG_COST} null=255
+
+#TIME=`date +"%Y-%M-%D %H:%M:%S"`
+#echo "$TIME LABEL with $VEG_WEIGHTS"
+#r.category map=${VEG_COST} rules=${UNIT_PARAMETERS}/${VEG_WEIGHTS}
+#r.colors map=${VEG_COST} color=rules rules=${UNIT_PARAMETERS}/${VEG_COLORS}
+
+swk=line_stats
+mkdir -p $TARGETDIR/$swk/linear
+
+r.mask ideal_path
+r.stats -ncla fs=, input=${EDWG_COST},${BLM_COST},${LANDCOV_COST},${SLOPE_COST} output=- \
+| perl -pe 'BEGIN{print "request_name,risk_class,risk_weight,rent_class,rent_weight,terrain_class,terrain_weight,slope_class,slope_weight,area,count\n";}print $ENV{NAME},",";' \
+> $TARGETDIR/$swk/${UNIT}.csv
+
+r.to.vect -sv input=${BLM_COST} output=${BLM_COST}_path feature=line
+r.to.vect -sv input=${EDWG_COST} output=${EDWG_COST}_path feature=line
+r.to.vect -sv input=${LANDCOV_COST} output=${LANDCOV_COST}_path feature=line
+r.to.vect -sv input=${SLOPE_COST} output=${SLOPE_COST}_path feature=line
+
+r.mask -r
+
+#v.build.polylines input=${EDWG_COST}_path output=${EDWG_COST}_polyline cats=multi
+v.report ${EDWG_COST}_path option=length units=miles \
+| perl -pe 'if($.==1){$_="request_name,risk_class,risk_weight,risk_miles\n";}else{print $ENV{NAME},",";}s/[|]/,/g;' \
+> $TARGETDIR/$swk/linear/${UNIT}_${EDWG_COST}_miles.csv
+
+#v.build.polylines input=${BLM_COST}_path output=${BLM_COST}_polyline cats=multi
+v.report ${BLM_COST}_path option=length units=miles \
+| perl -pe 'if($.==1){$_="request_name,rent_class,rent_weight,rent_miles\n"}else{print $ENV{NAME},",";}s/[|]/,/g;' \
+> $TARGETDIR/$swk/linear/${UNIT}_${BLM_COST}_miles.csv
+
+#v.build.polylines input=${LANDCOV_COST}_path output=${LANDCOV_COST}_polyline cats=multi
+v.report ${LANDCOV_COST}_path option=length units=miles \
+| perl -pe 'if($.==1){$_="request_name,terrain_class,terrain_weight,terrain_miles\n"}else{print $ENV{NAME},",";}s/[|]/,/g;' \
+> $TARGETDIR/$swk/linear/${UNIT}_${LANDCOV_COST}_miles.csv
+
+#v.build.polylines input=${SLOPE_COST}_path output=${SLOPE_COST}_polyline cats=multi
+v.report ${SLOPE_COST}_path option=length units=miles \
+| perl -pe 'if($.==1){$_="request_name,slope_class,slope_weight,slope_miles\n"}else{print $ENV{NAME},",";}s/[|]/,/g;' \
+> $TARGETDIR/$swk/linear/${UNIT}_${SLOPE_COST}_miles.csv
+
+#v.build.polylines input=${VEG_COST}_path output=${VEG_COST}_polyline cats=multi
+#v.report ${VEG_COST}_path option=length units=miles \
+#| perl -pe 'if($.==1){$_="request_name,terrain_class,terrain_weight,terrain_miles\n"}else{print $ENV{NAME},",";}s/[|]/,/g;' \
+#> $TARGETDIR/$swk/linear/${UNIT}_${VEG_COST}_miles.csv
+
+swk=ideal_path
+mkdir -p $TARGETDIR/$swk
+
+g.mapset -c location=${LINE_LOCATION} mapset=$RUN
+g.mapset location=${LINE_LOCATION} mapset=$RUN
+g.region -d
+v.proj location=${LINE_LOCATION} mapset=PERMANENT input=$RUN
+eval `g.region -ag vect=$RUN res=$RESOLUTION`
+g.remove vect=$RUN
+v.proj location=${UNIT_LOCATION} mapset=$RUN input=${EDWG_COST}_path
+v.out.ogr -c input=${EDWG_COST}_path dsn=$TARGETDIR/$swk/${UNIT}_${EDWG_COST}_path.kml format=KML type=line
+v.proj location=${UNIT_LOCATION} mapset=$RUN input=${BLM_COST}_path
+v.out.ogr -c input=${BLM_COST}_path dsn=$TARGETDIR/$swk/${UNIT}_${BLM_COST}_path.kml format=KML type=line
+v.proj location=${UNIT_LOCATION} mapset=$RUN input=${LANDCOV_COST}_path
+v.out.ogr -c input=${LANDCOV_COST}_path dsn=$TARGETDIR/$swk/${UNIT}_${LANDCOV_COST}_path.kml format=KML type=line
+v.proj location=${UNIT_LOCATION} mapset=$RUN input=${SLOPE_COST}_path
+v.out.ogr -c input=${SLOPE_COST}_path dsn=$TARGETDIR/$swk/${UNIT}_${SLOPE_COST}_path.kml format=KML type=line
+
+fi
+TIME=`date +"%Y-%M-%D %H:%M:%S"`
+echo "$TIME finished $TARGETDIR"
+

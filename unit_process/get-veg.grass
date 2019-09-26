@@ -1,0 +1,16 @@
+result=VEG
+g.proj -c location=aea proj4="+proj=aea +lat_0=23.0000000000 +lat_1=29.5000000000 +lat_2=45.5000000000 +lon_0=-96.0000000000 +x_0=0.0000000000 +y_0=0.0000000000 +a=6378137 +rf=298.257222101 +no_defs +towgs84=0.000,0.000,0.000 +to_meter=1.0"
+g.mapset -c location=aea mapset=$result
+g.mapset location=aea mapset=$result
+g.region -d
+v.in.ogr -e dsn=${result}_shapefiles output=$result
+
+v.db.addcol $result col="terrain_class integer"
+v.db.update $result col=terrain_class qcol="1" where="TERRAIN_TY = 'Desert/Barren Land'"
+v.db.update $result col=terrain_class qcol="2" where="TERRAIN_TY = 'Farmland'"
+v.db.update $result col=terrain_class qcol="3" where="TERRAIN_TY = 'Forested'"
+v.db.update $result col=terrain_class qcol="4" where="TERRAIN_TY = 'Open Water'"
+v.db.update $result col=terrain_class qcol="5" where="TERRAIN_TY = 'Scrubbed/Flat'"
+v.db.update $result col=terrain_class qcol="6" where="TERRAIN_TY = 'Suburban'"
+v.db.update $result col=terrain_class qcol="7" where="TERRAIN_TY = 'Urban'"
+v.db.update $result col=terrain_class qcol="8" where="WETLAND = 'NWI' OR WETLAND = 'Wetlands (MT)'"

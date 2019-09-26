@@ -1,0 +1,17 @@
+#!/bin/bash
+
+TIME=`date +"%Y-%M-%D %H:%M:%S"`
+echo ${BASH_SOURCE}
+
+TIME=`date +"%Y-%M-%D %H:%M:%S"`
+if [ ! -e "$GRASSDBASE/{$SPHERE_LOCATION}" ] ; then
+echo "$TIME CREATE LOCATION ${SPHERE_LOCATION}"
+g.proj -c location=${SPHERE_LOCATION} proj4="+proj=longlat +a=6378137 +rf=298.257223563 +nadgrids=@null +wktext +no_defs +towgs84=0.000,0.000,0.000 +over"
+fi
+
+rsync -aq $GRASSDBASE/${LINE_LOCATION}/{BLM,EDWG,SLOPE,VEG} $GRASSDBASE/${SPHERE_LOCATION}
+
+
+TIME=`date +"%Y-%M-%D %H:%M:%S"`
+echo "$TIME finished $TARGETDIR"
+

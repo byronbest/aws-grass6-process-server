@@ -1,0 +1,118 @@
+#!/bin/bash
+
+TIME=`date +"%Y-%M-%D %H:%M:%S"`
+echo ${BASH_SOURCE}
+
+g.mapset location=${LINE_LOCATION} mapset=PERMANENT
+g.remove vect=$RUN
+
+echo "$TIME CREATE $RUN KML=$KML"
+v.in.ogr -e dsn=$TARGETDIR/shapefiles output=$RUN
+
+if v.info map=$RUN ; then
+
+echo "$TIME CREATE ${GMAP_LOCATION} $RUN"
+g.mapset -c location=${GMAP_LOCATION} mapset=$RUN
+g.mapset location=${GMAP_LOCATION} mapset=$RUN
+g.region -d
+
+echo "$TIME PROJ $RUN FROM $LINE_LOCATION AT $RESOLUTION meters"
+v.proj location=${LINE_LOCATION} mapset=PERMANENT input=$RUN
+eval `g.region -ag vect=$RUN res=$RESOLUTION`
+g.remove vect=$RUN
+echo "$TIME removed $RUN to update grid"
+
+let a=10*$RESOLUTION
+let b=10*$RESOLUTION
+echo "$TIME GROW $REGION $b wider $a taller"
+eval `g.region -ag n=n+$a s=s-$a e=e+$b w=w-$b res=$RESOLUTION`
+
+if [ $rows -gt $cols ] ; then
+let x=$rows-$cols
+let a=$x*$ewres/2
+let b=$rows*$nsres/20
+echo "$TIME GROW $REGION $a wider $b taller"
+g.region -a e=e+$a w=w-$a n=n+$b s=s-$b res=$RESOLUTION
+else
+let x=$cols-$rows
+let a=$x*$nsres/2
+let b=$cols*$ewres/20
+echo "$TIME GROW $REGION $b wider $a taller"
+g.region -a n=n+$a s=s-$a e=e+$b w=w-$b res=$RESOLUTION
+fi
+
+v.proj location=${LINE_LOCATION} mapset=PERMANENT input=$RUN
+
+echo "$TIME CREATE $REGION"
+v.in.region output=$REGION --overwrite
+
+eval `g.region -g`
+
+TIME=`date +"%Y-%M-%D %H:%M:%S"`
+echo "$TIME CREATE $EDWG_COST in $RUN from $EDWG_MAPSET column $EDWG_COLUMN"
+v.to.rast input=${EDWG_COST}@${EDWG_MAPSET} layer=1 output=${EDWG_COST} \
+use=attr column=${EDWG_COLUMN} rows=$rows
+TIME=`date +"%Y-%M-%D %H:%M:%S"`
+echo "$TIME LABEL with $EDWG_WEIGHTS"
+r.category map=${EDWG_COST} rules=${UNIT_PARAMETERS}/${EDWG_WEIGHTS}
+r.colors map=${EDWG_COST} color=rules rules=${UNIT_PARAMETERS}/${EDWG_COLORS}
+
+TIME=`date +"%Y-%M-%D %H:%M:%S"`
+echo "$TIME CREATE $BLM_COST in $RUN from $BLM_MAPSET column $BLM_COLUMN"
+v.to.rast input=${BLM_COST}@${BLM_MAPSET} output=${BLM_COST} \
+use=attr column=${BLM_COLUMN} rows=$rows
+
+TIME=`date +"%Y-%M-%D %H:%M:%S"`
+echo "$TIME LABEL with $BLM_WEIGHTS"
+r.category map=${BLM_COST} rules=${UNIT_PARAMETERS}/${BLM_WEIGHTS}
+r.colors map=${BLM_COST} color=rules rules=${UNIT_PARAMETERS}/${BLM_COLORS}
+
+TIME=`date +"%Y-%M-%D %H:%M:%S"`
+echo "$TIME CREATE $SLOPE_COST in $RUN from $SLOPE_MAPSET column $SLOPE_COLUMN"
+v.to.rast input=${SLOPE_COST}@${SLOPE_MAPSET} layer=1 output=${SLOPE_COST} \
+use=attr column=${SLOPE_COLUMN} rows=$rows
+
+TIME=`date +"%Y-%M-%D %H:%M:%S"`
+echo "$TIME LABEL with $SLOPE_WEIGHTS"
+r.category map=${SLOPE_COST} rules=${UNIT_PARAMETERS}/${SLOPE_WEIGHTS}
+r.colors map=${SLOPE_COST} color=rules rules=${UNIT_PARAMETERS}/${SLOPE_COLORS}
+
+TIME=`date +"%Y-%M-%D %H:%M:%S"`
+echo "$TIME CREATE $VEG_COST_NORTH in $RUN from $VEG_MAPSET column $VEG_COLUMN"
+v.to.rast input=${VEG_COST_NORTH}@${VEG_MAPSET} output=${VEG_COST_NORTH} \
+use=attr column=${VEG_COLUMN} rows=$rows
+
+TIME=`date +"%Y-%M-%D %H:%M:%S"`
+
+TIME=`date +"%Y-%M-%D %H:%M:%S"`
+echo "$TIME CREATE $VEG_COST_SOUTH in $RUN from $VEG_MAPSET column $VEG_COLUMN"
+v.to.rast input=${VEG_COST_SOUTH}@${VEG_MAPSET} output=${VEG_COST_SOUTH} \
+use=attr column=${VEG_COLUMN} rows=$rows
+
+TIME=`date +"%Y-%M-%D %H:%M:%S"`
+echo "$TIME CREATE VEG=if(isnull(${VEG_COST_NORTH}),${VEG_COST_SOUTH},${VEG_COST_NORTH})"
+r.mapcalc "VEG=if(isnull(${VEG_COST_NORTH}),${VEG_COST_SOUTH},${VEG_COST_NORTH})"
+
+TIME=`date +"%Y-%M-%D %H:%M:%S"`
+echo "$TIME LABEL with $VEG_WEIGHTS"
+r.category map=VEG rules=${UNIT_PARAMETERS}/${VEG_WEIGHTS}
+r.colors map=VEG color=rules rules=${UNIT_PARAMETERS}/${VEG_COLORS}
+
+swk=line_tiles
+mkdir -p $TARGETDIR/$swk
+
+g.region -gl > ${TARGETDIR}/$swk/${UNIT}.bounds
+#eval `g.region -gl`
+#echo "$sw_lat,$sw_long,$ne_lat,$ne_long" > ${TARGETDIR}/$swk/swne.bounds
+eval `g.region -bg`
+echo "$ll_s,$ll_w,$ll_n,$ll_e" > ${TARGETDIR}/$swk/swne.bounds
+
+r.out.png -tw input=${EDWG_COST} output=${TARGETDIR}/$swk/${EDWG_COST}.png
+r.out.png -tw input=${BLM_COST} output=${TARGETDIR}/$swk/${BLM_COST}.png
+r.out.png -tw input=${SLOPE_COST} output=${TARGETDIR}/$swk/${SLOPE_COST}.png
+r.out.png -tw input=VEG output=${TARGETDIR}/$swk/VEG.png
+
+fi
+TIME=`date +"%Y-%M-%D %H:%M:%S"`
+echo "$TIME finished $TARGETDIR"
+

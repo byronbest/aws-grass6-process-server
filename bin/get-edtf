@@ -1,0 +1,46 @@
+#!/bin/bash
+
+# env NAME
+# env JOBHOME
+
+TARGET=$(basename $BASH_SOURCE)
+export TARGET
+
+UNIT_PROCESS=$HOME/unit_process
+export UNIT_PROCESS
+UNIT_PARAMETERS=$HOME/unit_parameters
+export UNIT_PARAMETERS
+GRASS_BATCH_JOB=$UNIT_PROCESS/get-edtf.grass
+export GRASS_BATCH_JOB
+
+if [ -e rc ] ; then
+. rc
+fi
+
+TMPDIR=/media/ephemeral0/$TARGET
+sudo mkdir -p $TMPDIR
+sudo chmod a+w $TMPDIR
+cd $TMPDIR
+
+if [ ! -e EDWG_shapefiles ] ; then
+aws s3 cp s3://ltpt-data-exchange/EDWG_Source/WECC_Risk_Class.zip .
+mkdir -p EDWG_shapefiles
+cd EDWG_shapefiles
+unzip ../WECC_Risk_Class.zip
+for i in * ; do
+k=`echo "$i" | sed -e 's/[- ]/_/'`
+if [ "$i" != "$k" ] ; then
+mv "$i" "$k"
+fi
+done
+cd ..
+rm -f WECC_Risk_Class.zip
+fi
+
+if RUN=$JOBHOME UNIT=$NAME HOME=$HOME/${JOBHOME} one_job.sh ; then
+RC=$?
+else
+RC=$?
+fi
+
+exit $RC

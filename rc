@@ -1,0 +1,61 @@
+#!.
+# this is in the context of HOME=JOBHOME
+# LOCATION is initialized to SOURCE_LOCATION for each job
+# and becomes exclusive to one instance of GRASS
+# $HOME/.grassrc
+
+export ALARMTIME=600
+
+if [ -z ${COLOR+x} ]; then export COLOR=FF0000 ; fi
+if [ -z ${SOURCE_LOCATION+x} ]; then export SOURCE_LOCATION=ll ; fi
+if [ -z ${RESOLUTION+x} ]; then export RESOLUTION=250 ; fi
+if [ -z ${RASTER_SIZE+x} ]; then ((RASTER_SIZE=(4135+2)*(7554+2))) ; export RASTER_SIZE ; fi
+if [ -z ${LOCATION+x} ]; then export LOCATION=$JOBHOME ; fi
+if [ -z ${MAPSET+x} ]; then export MAPSET=PERMANENT ; fi
+if [ -z ${REGION+x} ]; then export REGION=bbox ; fi
+if [ -z ${LINE_LOCATION+x} ]; then export LINE_LOCATION=$JOBHOME ; fi
+if [ -z ${SPHERE_LOCATION+x} ]; then export SPHERE_LOCATION=sphere ; fi
+if [ -z ${GMAP_LOCATION+x} ]; then export GMAP_LOCATION=gmap ; fi
+if [ -z ${UNIT_LOCATION+x} ]; then export UNIT_LOCATION=aea ; fi
+if [ -z ${EDWG_MAPSET+x} ]; then export EDWG_MAPSET=EDWG ; fi
+if [ -z ${EDWG_COST+x} ]; then export EDWG_COST=EDWG ; fi
+if [ -z ${EDWG_LAYER+x} ]; then export EDWG_LAYER=1 ; fi
+if [ -z ${EDWG_COLUMN+x} ]; then export EDWG_COLUMN=RISK_CLASS ; fi
+if [ -z ${EDWG_COLORS+x} ]; then export EDWG_COLORS=EDWG_colors.txt ; fi
+if [ -z ${EDWG_LABELS+x} ]; then export EDWG_LABELS=EDWG_labels.txt ; fi
+if [ -z ${EDWG_WEIGHTS+x} ]; then export EDWG_WEIGHTS=EDWG_weights.txt ; fi
+if [ -z ${BLM_MAPSET+x} ]; then export BLM_MAPSET=BLM ; fi
+if [ -z ${BLM_COST+x} ]; then export BLM_COST=BLM ; fi
+if [ -z ${BLM_COUNT+x} ]; then export BLM_COUNT=7 ; fi
+if [ -z ${BLM_LAYER+x} ]; then export BLM_LAYER=1 ; fi
+if [ -z ${BLM_CAST_COLUMN+x} ]; then export BLM_CAST_COLUMN=RentSched ; fi
+if [ -z ${BLM_COLUMN+x} ]; then export BLM_COLUMN=BLM_ZONE ; fi
+if [ -z ${BLM_COLORS+x} ]; then export BLM_COLORS=BLM_colors.txt ; fi
+if [ -z ${BLM_LABELS+x} ]; then export BLM_LABELS=BLM_labels.txt ; fi
+if [ -z ${BLM_WEIGHTS+x} ]; then export BLM_WEIGHTS=BLM_market.txt ; fi
+if [ -z ${LANDCOV_MAPSET+x} ]; then export LANDCOV_MAPSET=LANDCOV ; fi
+if [ -z ${LANDCOV_COST+x} ]; then export LANDCOV_COST=LANDCOV ; fi
+if [ -z ${LANDCOV_LABELS+x} ]; then export LANDCOV_LABELS=LANDCOV_labels.txt ; fi
+if [ -z ${LANDCOV_WEIGHTS+x} ]; then export LANDCOV_WEIGHTS=LANDCOV_weights.txt ; fi
+if [ -z ${LANDCOV_COLORS+x} ]; then export LANDCOV_COLORS=LANDCOV_colors.txt ; fi
+if [ -z ${SLOPE_MAPSET+x} ]; then export SLOPE_MAPSET=SLOPE ; fi
+if [ -z ${SLOPE_COST+x} ]; then export SLOPE_COST=SLOPE ; fi
+if [ -z ${SLOPE_COUNT+x} ]; then export SLOPE_COUNT=174 ; fi
+if [ -z ${SLOPE_LAYER+x} ]; then export SLOPE_LAYER=1 ; fi
+if [ -z ${SLOPE_COLUMN+x} ]; then export SLOPE_COLUMN=slope_class ; fi
+if [ -z ${SLOPE_COLORS+x} ]; then export SLOPE_COLORS=SLOPE_colors.txt ; fi
+if [ -z ${SLOPE_LABELS+x} ]; then export SLOPE_LABELS=SLOPE_labels.txt ; fi
+if [ -z ${SLOPE_WEIGHTS+x} ]; then export SLOPE_WEIGHTS=SLOPE_weights.txt ; fi
+if [ -z ${VEG_MAPSET+x} ]; then export VEG_MAPSET=VEG ; fi
+if [ -z ${VEG_COST+x} ]; then export VEG_COST=VEG ; fi
+if [ -z ${VEG_COST_NORTH+x} ]; then export VEG_COST_NORTH=NORTH ; fi
+if [ -z ${VEG_COUNT_NORTH+x} ]; then export VEG_COUNT_NORTH=115 ; fi
+if [ -z ${VEG_COST_NORTH_LAYER+x} ]; then export VEG_COST_NORTH_LAYER=1 ; fi
+if [ -z ${VEG_COST_SOUTH+x} ]; then export VEG_COST_SOUTH=SOUTH ; fi
+if [ -z ${VEG_COUNT_SOUTH+x} ]; then export VEG_COUNT_SOUTH=167 ; fi
+if [ -z ${VEG_COST_SOUTH_LAYER+x} ]; then export VEG_COST_SOUTH_LAYER=1 ; fi
+if [ -z ${VEG_COLUMN+x} ]; then export VEG_COLUMN=terrain_class ; fi
+if [ -z ${VEG_WEIGHTS+x} ]; then export VEG_WEIGHTS=VEG_weights.txt ; fi
+if [ -z ${VEG_COLORS+x} ]; then export VEG_COLORS=VEG_colors.txt ; fi
+if [ -z ${VEG_NORTH_LOCATION+x} ]; then export VEG_NORTH_LOCATION=VEG_NORTH ; fi
+if [ -z ${VEG_SOUTH_LOCATION+x} ]; then export VEG_SOUTH_LOCATION=VEG_SOUTH ; fi

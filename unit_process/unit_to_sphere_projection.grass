@@ -1,0 +1,42 @@
+#!/bin/bash
+
+TIME=`date +"%Y-%M-%D %H:%M:%S"`
+echo ${BASH_SOURCE}
+
+TIME=`date +"%Y-%M-%D %H:%M:%S"`
+echo "$TIME CREATE ${SPHERE_LOCATION} $EDWG_MAPSET"
+g.mapset -c location=${SPHERE_LOCATION} mapset=${EDWG_MAPSET}
+g.region -d
+
+echo "$TIME CREATE $EDWG_COST in $SPHERE_LOCATION from $EDWG_MAPSET column $EDWG_COLUMN"
+v.proj input=${EDWG_COST} location=${UNIT_LOCATION} mapset=${EDWG_MAPSET}
+
+TIME=`date +"%Y-%M-%D %H:%M:%S"`
+echo "$TIME CREATE ${SPHERE_LOCATION} $BLM_MAPSET"
+g.mapset -c location=${SPHERE_LOCATION} mapset=${BLM_MAPSET}
+g.region -d
+
+echo "$TIME CREATE $BLM_COST in $SPHERE_LOCATION from $BLM_MAPSET column $BLM_COLUMN"
+v.proj input=${BLM_COST} location=${UNIT_LOCATION} mapset=${BLM_MAPSET}
+
+TIME=`date +"%Y-%M-%D %H:%M:%S"`
+echo "$TIME CREATE ${SPHERE_LOCATION} $SLOPE_MAPSET"
+g.mapset -c location=${SPHERE_LOCATION} mapset=${SLOPE_MAPSET}
+g.region -d
+
+echo "$TIME CREATE $SLOPE_COST in $SPHERE_LOCATION from $SLOPE_MAPSET column $SLOPE_COLUMN"
+v.proj input=${SLOPE_COST} location=${UNIT_LOCATION} mapset=${SLOPE_MAPSET}
+
+TIME=`date +"%Y-%M-%D %H:%M:%S"`
+echo "$TIME CREATE ${SPHERE_LOCATION} $VEG_MAPSET"
+g.mapset -c location=${SPHERE_LOCATION} mapset=${VEG_MAPSET}
+g.region -d
+
+echo "$TIME CREATE $VEG_COST_NORTH in $SPHERE_LOCATION from $VEG_MAPSET column $VEG_COLUMN"
+v.proj input=${VEG_COST_NORTH} location=${UNIT_LOCATION} mapset=${VEG_MAPSET}
+
+echo "$TIME CREATE $VEG_COST_SOUTH in $SPHERE_LOCATION from $VEG_MAPSET column $VEG_COLUMN"
+v.proj input=${VEG_COST_SOUTH} location=${UNIT_LOCATION} mapset=${VEG_MAPSET}
+
+TIME=`date +"%Y-%M-%D %H:%M:%S"`
+echo "$TIME finished $TARGETDIR"

@@ -1,0 +1,74 @@
+#!/bin/bash
+
+# env NAME
+# env JOBHOME
+# env KML
+
+export TIMEOUT="TIMEOUT cannot save to $1"
+TARGET=$(basename $BASH_SOURCE)
+export TARGET
+
+SAVE_S3=$1
+NOTIFY_QUEUE=$2
+PROCESS_CREATES="$SAVE_S3/${TARGET}/$NAME"
+
+UNIT_PROCESS=$HOME/unit_process
+export UNIT_PROCESS
+UNIT_PARAMETERS=$HOME/unit_parameters
+export UNIT_PARAMETERS
+GRASS_BATCH_JOB=$UNIT_PROCESS/line_stats.grass
+export GRASS_BATCH_JOB
+
+TARGETDIR=${TARGETBASE}/${TARGET}/$NAME
+echo "MKDIR $TARGETDIR"
+mkdir -p $TARGETDIR
+export TARGETDIR
+
+if [ -e rc ] ; then
+. rc
+fi
+
+echo "SYNC LOCATION $SOURCE_LOCATION TO JOB $JOBHOME"
+( cd ${GRASSDBASE} ; rsync -aq --delete ${SOURCE_LOCATION}/ ${JOBHOME} & )
+
+p=`dirname $KML`
+echo "SYNC $p $TARGETDIR"
+trys=0
+until timeout $ALARMTIME aws s3 sync $p $TARGETDIR ; do
+let trys=$trys+1
+aws sns publish --topic "$STATUSNOTE" --message "TIMEOUT cannot sync from $p"
+if [ $trys -gt 10 ]; then
+	exit
+fi
+done
+
+wait
+if RUN=$JOBHOME UNIT=$NAME HOME=$HOME/${JOBHOME} one_job.sh ; then
+RC=$?
+color_kml.pl BLM ; ( cd $TARGETDIR/ideal_path ; zip ${NAME}_BLM.kmz ${NAME}_BLM.kml )
+color_kml.pl EDWG ; ( cd $TARGETDIR/ideal_path ; zip ${NAME}_EDWG.kmz ${NAME}_EDWG.kml )
+color_kml.pl LANDCOV ; ( cd $TARGETDIR/ideal_path ; zip ${NAME}_LANDCOV.kmz ${NAME}_LANDCOV.kml )
+color_kml.pl SLOPE ; ( cd $TARGETDIR/ideal_path ; zip ${NAME}_SLOPE.kmz ${NAME}_SLOPE.kml )
+( cd $TARGETDIR/ideal_path ; merge_kml.pl ${NAME}_{BLM,EDWG,LANDCOV,SLOPE}.kml > ${NAME}.kml ; zip ${NAME}.kmz ${NAME}.kml )
+echo "SYNC $TARGETDIR to $PROCESS_CREATES"
+trys=0
+until timeout $ALARMTIME aws s3 sync $TARGETDIR $PROCESS_CREATES ; do
+let trys=$trys+1
+aws sns publish --topic "$STATUSNOTE" --message "$TIMEOUT"
+if [ $trys -gt 10 ]; then
+	exit
+fi
+done
+if [ ! -e leave-it ] ; then
+rm -rf $GRASSDBASE/*/$JOBHOME
+rm -rf $TARGETDIR
+fi
+if [ "X$NOTIFY_QUEUE" != "X" ]; then
+aws sns publish --topic "$NOTIFY_QUEUE" --message "$PROCESS_CREATES/"
+fi
+else
+RC=$?
+aws sns publish --topic "$STATUSNOTE" --message "FAIL $TARGET $JOBHOME $NAME"
+fi
+
+exit $RC

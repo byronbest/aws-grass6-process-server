@@ -1,0 +1,7 @@
+
+g.mapset -c location=aea mapset=BLM
+v.proj location=BLM mapset=BLM input=BLM
+
+v.db.addcol BLM col="rent_class integer"
+v.db.update BLM col=rent_class qcol="CAST(RentSchedu AS integer)" where="RentSchedu <> ''"
+
